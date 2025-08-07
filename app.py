@@ -62,7 +62,7 @@ def carregar_dados():
 df = carregar_dados()
 
 st.sidebar.header("Filtros")
-cidade_sel = st.sidebar.selectbox("Selecione uma cidade:", sorted(df["city"].unique()))
+cidade_sel = st.sidebar.selectbox("Selecione uma cidade:", sorted(df["city"].unique()), key="cidade_selectbox_sidebar")
 data_min, data_max = df["DT_INTER"].min(), df["DT_INTER"].max()
 data_ini, data_fim = st.sidebar.date_input("Período:", [data_min, data_max], min_value=data_min, max_value=data_max)
 modo_avancado = st.sidebar.checkbox("Ativar Modo Avançado")
