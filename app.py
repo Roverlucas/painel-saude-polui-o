@@ -32,6 +32,10 @@ def carregar_dados():
 
     df_macro = pd.concat([df_curitiba, df_pg, df_medianeira, df_foz], ignore_index=True)
 
+    # Corrigir tipo da coluna DT_INTER
+    if "DT_INTER" in df_macro.columns:
+        df_macro["DT_INTER"] = pd.to_datetime(df_macro["DT_INTER"], errors="coerce")
+
     # Cluster macro
     variaveis_macro = ["PM2_5", "INTERNACOES", "OBITOS", "CUSTO_MEDIO", "DURACAO_MEDIA", "UMIDADE", "TEMP_MEDIA"]
     df_macro_validos = df_macro.dropna(subset=variaveis_macro).copy()
@@ -60,13 +64,12 @@ df = carregar_dados()
 # Sidebar
 st.sidebar.header("Filtros")
 cidade_sel = st.sidebar.selectbox("Selecione uma cidade:", sorted(df["city"].unique()))
-data_min, data_max = pd.to_datetime(df["DT_INTER"]).min(), pd.to_datetime(df["DT_INTER"]).max()
+data_min, data_max = df["DT_INTER"].min(), df["DT_INTER"].max()
 data_ini, data_fim = st.sidebar.date_input("Período:", [data_min, data_max], min_value=data_min, max_value=data_max)
 modo_avancado = st.sidebar.checkbox("Ativar Modo Avançado")
 
 # Filtro geral
-df["DT_INTER"] = pd.to_datetime(df["DT_INTER"])
-df_filtrado = df[(df["city"] == cidade_sel) & (df["DT_INTER"] >= data_ini) & (df["DT_INTER"] <= data_fim)]
+df_filtrado = df[(df["city"] == cidade_sel) & (df["DT_INTER"] >= pd.to_datetime(data_ini)) & (df["DT_INTER"] <= pd.to_datetime(data_fim))]
 
 # Layout geral
 st.markdown(f"## Dashboards - {cidade_sel}")
