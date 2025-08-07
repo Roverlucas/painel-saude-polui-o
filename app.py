@@ -100,14 +100,8 @@ for col, title in zip(cols, metric_titles):
 
 st.markdown("## Ranking por Cidade (Médias das Métricas Derivadas)")
 df_ranking = df.groupby("city")[cols].mean().reset_index().sort_values("IVP", ascending=False)
-st.dataframe(df_ranking.style.format("{:.2f}"))
+st.dataframe(df_ranking.style.format({col: "{:.2f}" for col in df_ranking.columns if col != "city"}))
 
-
-
-
-# Título do app
-st.set_page_config(page_title="Painel de Saúde e Poluição", layout="wide")
-st.title("Painel Interativo: Saúde, Poluição e Indicadores Socioeconômicos")
 
 # Carregar dados
 @st.cache_data
