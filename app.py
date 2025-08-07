@@ -87,21 +87,21 @@ if cidade_sel != "Todas":
     df_se_city = df[df["city"] == cidade_sel].iloc[0]
     col9, col10, col11 = st.columns(3)
     col9.metric("IDHM", df_se_city["IDHM"])
-    col10.metric("Renda Per Capita (R$)", f"{df_se_city['Renda_per_capita']:.2f}")
-    col11.metric("Taxa de Desemprego (%)", f"{df_se_city['Desemprego']:.1f}%")
+    col10.metric("Renda Per Capita (R$)", f"{df_se_city['Renda per capita (R$ mensais)']:.2f}")
+    col11.metric("Taxa de Alfabetização (%)", f"{df_se_city['Taxa de alfabetização (%)']:.1f}%")
 
 st.markdown("---")
 
 # Comparativo entre cidades
 st.markdown("### Comparativo entre Cidades - Indicadores Socioeconômicos")
-cols_se = ["IDHM", "Renda_per_capita", "Desemprego"]
+cols_se = ["IDHM (2010)", "Renda per capita (R$ mensais)", "Taxa de alfabetização (%)", "Taxa de urbanização (%)", "Densidade demográfica (hab/km²)", "Saneamento básico (%)"]
 df_comp_se = df[["city"] + cols_se].drop_duplicates()
 fig_se = px.bar(df_comp_se.melt(id_vars="city"), x="city", y="value", color="variable",
                 barmode="group", title="Comparação dos Indicadores Socioeconômicos")
 st.plotly_chart(fig_se, use_container_width=True)
 
 # Estatísticas por cluster
-df_stats = df.groupby(cluster_col)[["PM2_5", "INTERNACOES", "OBITOS", "CUSTO_MEDIO", "DURACAO_MEDIA", "UMIDADE", "TEMP_MEDIA", "IDHM", "Renda_per_capita", "Desemprego"]].mean().round(2)
+df_stats = df.groupby(cluster_col)[["PM2_5", "INTERNACOES", "OBITOS", "CUSTO_MEDIO", "DURACAO_MEDIA", "UMIDADE", "TEMP_MEDIA"] + cols_se].mean().round(2)
 st.markdown("### Estatísticas Médias por Cluster")
 st.dataframe(df_stats)
 
