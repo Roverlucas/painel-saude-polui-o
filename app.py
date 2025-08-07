@@ -2,6 +2,9 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import os
+import numpy as np
+import seaborn as sns
+import plotly.graph_objects as go
 
 # Título do app
 st.set_page_config(page_title="Painel de Saúde e Poluição", layout="wide")
@@ -35,11 +38,13 @@ data_max = pd.to_datetime(df_filtro["DATA_ENTRADA"].max())
 data_sel = st.date_input("Selecione o intervalo de datas:", [data_min, data_max], min_value=data_min, max_value=data_max)
 df_filtro = df_filtro[(pd.to_datetime(df_filtro["DATA_ENTRADA"]) >= pd.to_datetime(data_sel[0])) & (pd.to_datetime(df_filtro["DATA_ENTRADA"]) <= pd.to_datetime(data_sel[1]))]
 
-# Filtro por cluster
-clusters = df_filtro["CLUSTER"].dropna().unique()
-cluster_sel = st.selectbox("Selecione o cluster:", options=["Todos"] + sorted([str(c) for c in clusters if pd.notnull(c)]))
+# Filtro por tipo de cluster
+cluster_tipo = st.radio("Tipo de clusterização:", ["Cluster por Cidade", "Cluster Macro"])
+cluster_col = "CLUSTER" if cluster_tipo == "Cluster por Cidade" else "CLUSTER_MACRO"
+clusters = df_filtro[cluster_col].dropna().unique()
+cluster_sel = st.selectbox("Selecione o cluster:", options=["Todos"] + sorted(list(clusters)))
 if cluster_sel != "Todos":
-    df_filtro = df_filtro[df_filtro["CLUSTER"] == cluster_sel]
+    df_filtro = df_filtro[df_filtro[cluster_col] == cluster_sel]
 
 # Validar colunas ambientais
 colunas_amb = ["VEL_MEDIA", "TEMP_MEDIA"]
@@ -62,70 +67,38 @@ col8.metric("Temperatura Média", f"{df_filtro['TEMP_MEDIA'].mean():.1f} °C" if
 
 st.markdown("---")
 
-# Comparação entre cidades (boxplots)
-st.markdown("### Comparativo entre cidades")
-col9, col10 = st.columns(2)
-with col9:
-    fig_comp1 = px.box(df, x="city", y="PM2_5", color="city", title="Distribuição de PM2.5 por Cidade")
-    st.plotly_chart(fig_comp1, use_container_width=True)
-with col10:
-    fig_comp2 = px.box(df, x="city", y="INTERNACOES", color="city", title="Distribuição de Internações por Cidade")
-    st.plotly_chart(fig_comp2, use_container_width=True)
-
-# Séries temporais interativas
-st.markdown("### Séries Temporais por Cidade")
-cidades_multiselect = st.multiselect("Escolha as cidades para comparar:", options=sorted(df["city"].unique()), default=sorted(df["city"].unique()))
-df_series = df[df["city"].isin(cidades_multiselect)]
-fig_series = px.line(df_series, x="DATA_ENTRADA", y="INTERNACOES", color="city", title="Internações ao longo do tempo por cidade")
-st.plotly_chart(fig_series, use_container_width=True)
-
-st.markdown("---")
-
-# Linha do tempo da cidade filtrada
-fig_tempo = px.line(df_filtro, x="DATA_ENTRADA", y=["INTERNACOES", "PM2_5"],
-                    labels={"value": "Contagem", "variable": "Variável"},
-                    title=f"Internações e PM2.5 ao longo do tempo - {cidade_sel if cidade_sel != 'Todas' else 'Todas as cidades'}")
-st.plotly_chart(fig_tempo, use_container_width=True)
-
-# Linha inferior: Mapa e Dispersão
-col11, col12 = st.columns(2)
-with col11:
-    fig_map = px.scatter_mapbox(df_filtro,
-                                 lat="lat", lon="long", color="CLUSTER",
-                                 size="INTERNACOES", zoom=6,
-                                 hover_name="city", hover_data=["PM2_5", "INTERNACOES"],
-                                 mapbox_style="carto-positron",
-                                 title="Mapa de Internações e Poluição")
-    st.plotly_chart(fig_map, use_container_width=True)
-
-with col12:
-    fig_disp = px.scatter(df_filtro, x="PM2_5", y="INTERNACOES", color="CLUSTER",
-                          title="Dispersão PM2.5 vs Internações")
-    st.plotly_chart(fig_disp, use_container_width=True)
-
-# Barras por cluster
-fig_bar = px.bar(df_filtro.groupby("CLUSTER")["INTERNACOES"].sum().reset_index(),
-                 x="CLUSTER", y="INTERNACOES",
-                 title="Total de internações por cluster")
-st.plotly_chart(fig_bar, use_container_width=True)
-
-# Radar - comparativo de saúde e ambiente por cluster
-df_radar = df_filtro.groupby("CLUSTER")[["PM2_5", "UMIDADE", "TEMP_MEDIA", "VEL_MEDIA", "CUSTO_MEDIO", "DURACAO_MEDIA"]].mean().reset_index()
-df_radar_melted = df_radar.melt(id_vars="CLUSTER", var_name="Métrica", value_name="Valor")
-fig_radar = px.line_polar(df_radar_melted, r="Valor", theta="Métrica", color="CLUSTER",
-                          line_close=True, title="Comparativo de Métricas por Cluster")
-st.plotly_chart(fig_radar, use_container_width=True)
-
-# Heatmap por cluster e métrica
-st.markdown("### Heatmap de indicadores por cluster")
-df_heatmap = df_filtro.groupby("CLUSTER")[["PM2_5", "UMIDADE", "TEMP_MEDIA", "VEL_MEDIA", "INTERNACOES", "OBITOS"]].mean().round(1)
-fig_heatmap = px.imshow(df_heatmap, text_auto=True, color_continuous_scale="RdBu_r",
-                        aspect="auto", title="Matriz de Indicadores Médios por Cluster")
-st.plotly_chart(fig_heatmap, use_container_width=True)
-
-# Tabela de características por cluster
+# Comparativo por cluster
 st.markdown("### Tabela de características por cluster")
-st.dataframe(df_heatmap.reset_index())
+col_cluster = cluster_col
+df_stats = df.groupby(col_cluster)[["PM2_5", "UMIDADE", "TEMP_MEDIA", "VEL_MEDIA", "INTERNACOES", "OBITOS", "CUSTO_MEDIO", "DURACAO_MEDIA"]].agg(["mean", "std", "min", "max"]).round(1)
+st.dataframe(df_stats)
+
+# Correlação entre variáveis
+st.markdown("### Matriz de Correlação")
+df_corr = df_filtro[["PM2_5", "INTERNACOES", "OBITOS", "CUSTO_MEDIO", "DURACAO_MEDIA", "UMIDADE", "TEMP_MEDIA"]].corr().round(2)
+fig_corr = px.imshow(df_corr, text_auto=True, color_continuous_scale="PuOr", title="Correlação entre Indicadores")
+st.plotly_chart(fig_corr, use_container_width=True)
+
+# Índice de risco
+st.markdown("### Ranking de Risco por Cluster")
+df_risco = df.copy()
+df_risco["INDICE_RISCO"] = (
+    df_risco["PM2_5"].rank() * 0.4 +
+    df_risco["INTERNACOES"].rank() * 0.3 +
+    df_risco["OBITOS"].rank() * 0.2 +
+    df_risco["CUSTO_MEDIO"].rank() * 0.1
+)
+df_risco_grouped = df_risco.groupby(col_cluster)["INDICE_RISCO"].mean().reset_index().sort_values("INDICE_RISCO", ascending=False)
+st.dataframe(df_risco_grouped.rename(columns={"INDICE_RISCO": "Índice de Risco Médio"}))
+
+# Interpretador textual
+if cluster_sel != "Todos":
+    st.markdown(f"### Interpretação do Cluster {cluster_sel}")
+    with st.expander("Ver interpretação"):
+        st.write(f"• Média de PM2.5: {df_filtro['PM2_5'].mean():.2f} — {'alta' if df_filtro['PM2_5'].mean() > 25 else 'moderada'}")
+        st.write(f"• Internações: {df_filtro['INTERNACOES'].sum()} casos no período selecionado")
+        st.write(f"• Mortalidade: {df_filtro['OBITOS'].sum()} óbitos")
+        st.write(f"• Custo médio: R$ {df_filtro['CUSTO_MEDIO'].mean():,.2f}")
 
 # Mostrar link para acesso quando rodar localmente com ngrok
 auth_token = os.environ.get("NGROK_AUTH_TOKEN")
@@ -134,3 +107,4 @@ if auth_token:
     ngrok.set_auth_token(auth_token)
     public_url = ngrok.connect(8501)
     st.success(f"🔗 Painel disponível em: {public_url}")
+
