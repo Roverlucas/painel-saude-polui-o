@@ -42,6 +42,47 @@ def carregar_dados():
     # Merge socioeconômico
     df_macro = df_macro.merge(df_se, how="left", left_on="city", right_on="Cidade")
 
+    # Métricas derivadas
+    df_macro["RAZAO_INT_PM"] = df_macro["INTERNACOES"] / df_macro["PM2_5"]
+    df_macro["RAZAO_OB_INT"] = df_macro["OBITOS"] / df_macro["INTERNACOES"]
+    df_macro["CUSTO_PM"] = df_macro["CUSTO_MEDIO"] / df_macro["PM2_5"]
+    df_macro["INT_PER_CAPITA"] = df_macro["INTERNACOES"] / df_macro["Densidade demográfica (hab/km²)"]
+
+    # IVP (Índice de Vulnerabilidade à Poluição)
+    df_norm_ivp = StandardScaler().fit_transform(df_macro[["PM2_5", "INTERNACOES", "IDHM (2010)", "Saneamento básico (%)"]].fillna(0))
+    ivp = 0.4*df_norm_ivp[:,0] + 0.3*df_norm_ivp[:,1] - 0.2*df_norm_ivp[:,2] - 0.1*df_norm_ivp[:,3]
+    df_macro["IVP"] = ivp
+
+    return df_macro
+    
+@st.cache_data
+def carregar_dados():
+    df_curitiba = pd.read_csv("Base_Reduzida_Curitiba_PBI.csv")
+    df_pg = pd.read_csv("Base_Reduzida_PBI_PontaGrossa.csv")
+    df_medianeira = pd.read_csv("Base_Reduzida_PBI_Medianeira.csv")
+    df_foz = pd.read_csv("Base_Reduzida_PBI_Foz.csv")
+    df_se = pd.read_csv("Indicadores_Socioeconomicos_Cidades.csv")
+
+    for df_cidade in [df_curitiba, df_pg, df_medianeira, df_foz]:
+        if "CLUSTER" not in df_cidade.columns:
+            variaveis = ["PM2_5", "INTERNACOES", "OBITOS", "CUSTO_MEDIO", "DURACAO_MEDIA", "UMIDADE", "TEMP_MEDIA"]
+            df_tmp = df_cidade.dropna(subset=variaveis).copy()
+            df_norm = StandardScaler().fit_transform(df_tmp[variaveis])
+            kmeans = KMeans(n_clusters=3, random_state=42).fit(df_norm)
+            df_cidade.loc[df_tmp.index, "CLUSTER"] = kmeans.labels_
+
+    df_macro = pd.concat([df_curitiba, df_pg, df_medianeira, df_foz], ignore_index=True)
+
+    # Cluster macro
+    variaveis_macro = ["PM2_5", "INTERNACOES", "OBITOS", "CUSTO_MEDIO", "DURACAO_MEDIA", "UMIDADE", "TEMP_MEDIA"]
+    df_macro_validos = df_macro.dropna(subset=variaveis_macro).copy()
+    df_norm_macro = StandardScaler().fit_transform(df_macro_validos[variaveis_macro])
+    kmeans_macro = KMeans(n_clusters=4, random_state=42).fit(df_norm_macro)
+    df_macro.loc[df_macro_validos.index, "CLUSTER_MACRO"] = kmeans_macro.labels_
+
+    # Merge socioeconômico
+    df_macro = df_macro.merge(df_se, how="left", left_on="city", right_on="Cidade")
+
     return df_macro
 
 df = carregar_dados()
