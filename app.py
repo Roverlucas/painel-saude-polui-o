@@ -39,7 +39,7 @@ def carregar_dados():
     df_macro.loc[df_macro_validos.index, "CLUSTER_MACRO"] = kmeans_macro.labels_
 
     # Merge socioeconômico
-    df_macro = df_macro.merge(df_se, how="left", left_on="city", right_on="Município")
+    df_macro = df_macro.merge(df_se, how="left", left_on="city", right_on="Cidade")
 
     return df_macro
 
