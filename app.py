@@ -54,6 +54,102 @@ def carregar_dados():
     df_macro["IVP"] = ivp
 
     return df_macro
+
+df = carregar_dados()
+
+# Criação de dashboards por cidade
+st.markdown("## Dashboards por Cidade")
+cidade_sel = st.selectbox("Selecione uma cidade para visualização detalhada:", sorted(df["city"].unique()))
+df_cidade = df[df["city"] == cidade_sel]
+
+# Métricas principais por cidade
+st.subheader(f"Métricas Principais - {cidade_sel}")
+col1, col2, col3, col4 = st.columns(4)
+col1.metric("PM2.5 Médio", f"{df_cidade['PM2_5'].mean():.1f} µg/m³")
+col2.metric("Internações Totais", int(df_cidade["INTERNACOES"].sum()))
+col3.metric("IVP Médio", f"{df_cidade['IVP'].mean():.2f}")
+col4.metric("IDHM", f"{df_cidade['IDHM (2010)'].mean():.2f}")
+
+# Radar por cidade
+st.subheader("Radar das Métricas Derivadas")
+cols = ["RAZAO_INT_PM", "RAZAO_OB_INT", "CUSTO_PM", "INT_PER_CAPITA", "IVP"]
+df_radar = df.groupby("city")[cols].mean().reset_index()
+df_melted = df_radar.melt(id_vars="city", var_name="Métrica", value_name="Valor")
+fig_radar = px.line_polar(df_melted[df_melted["city"] == cidade_sel], r="Valor", theta="Métrica", line_close=True, title=f"Radar - {cidade_sel}")
+st.plotly_chart(fig_radar, use_container_width=True)
+
+# Correlação IVP vs Renda
+st.subheader("Correlação IVP x Renda per Capita")
+fig_scatter = px.scatter(df, x="Renda per capita (R$ mensais)", y="IVP", color="city", trendline="ols")
+st.plotly_chart(fig_scatter, use_container_width=True)
+
+# Heatmap de correlação das métricas por cidade
+st.subheader("Heatmap de Correlação por Cidade")
+df_corr = df[df["city"] == cidade_sel][cols + ["Renda per capita (R$ mensais)", "IDHM (2010)", "Saneamento básico (%)"]].corr()
+fig_heat = px.imshow(df_corr, text_auto=True, color_continuous_scale="RdBu_r", title=f"Correlação - {cidade_sel}")
+st.plotly_chart(fig_heat, use_container_width=True)
+
+# Análises complementares já existentes
+st.markdown("## Comparativos de Métricas Derivadas")
+cols = ["RAZAO_INT_PM", "RAZAO_OB_INT", "CUSTO_PM", "INT_PER_CAPITA", "IVP"]
+metric_titles = ["Razão Internações / PM2.5", "Razão Óbitos / Internações", "Custo Médio / PM2.5", "Internações per Capita", "Índice de Vulnerabilidade à Poluição (IVP)"]
+for col, title in zip(cols, metric_titles):
+    st.subheader(title)
+    fig = px.box(df, x="city", y=col, color="city", points="all", title=title)
+    st.plotly_chart(fig, use_container_width=True)
+
+st.markdown("## Ranking por Cidade (Médias das Métricas Derivadas)")
+df_ranking = df.groupby("city")[cols].mean().reset_index().sort_values("IVP", ascending=False)
+st.dataframe(df_ranking.style.format("{:.2f}"))
+
+
+
+
+# Título do app
+st.set_page_config(page_title="Painel de Saúde e Poluição", layout="wide")
+st.title("Painel Interativo: Saúde, Poluição e Indicadores Socioeconômicos")
+
+# Carregar dados
+@st.cache_data
+def carregar_dados():
+    df_curitiba = pd.read_csv("Base_Reduzida_Curitiba_PBI.csv")
+    df_pg = pd.read_csv("Base_Reduzida_PBI_PontaGrossa.csv")
+    df_medianeira = pd.read_csv("Base_Reduzida_PBI_Medianeira.csv")
+    df_foz = pd.read_csv("Base_Reduzida_PBI_Foz.csv")
+    df_se = pd.read_csv("Indicadores_Socioeconomicos_Cidades.csv")
+
+    for df_cidade in [df_curitiba, df_pg, df_medianeira, df_foz]:
+        if "CLUSTER" not in df_cidade.columns:
+            variaveis = ["PM2_5", "INTERNACOES", "OBITOS", "CUSTO_MEDIO", "DURACAO_MEDIA", "UMIDADE", "TEMP_MEDIA"]
+            df_tmp = df_cidade.dropna(subset=variaveis).copy()
+            df_norm = StandardScaler().fit_transform(df_tmp[variaveis])
+            kmeans = KMeans(n_clusters=3, random_state=42).fit(df_norm)
+            df_cidade.loc[df_tmp.index, "CLUSTER"] = kmeans.labels_
+
+    df_macro = pd.concat([df_curitiba, df_pg, df_medianeira, df_foz], ignore_index=True)
+
+    # Cluster macro
+    variaveis_macro = ["PM2_5", "INTERNACOES", "OBITOS", "CUSTO_MEDIO", "DURACAO_MEDIA", "UMIDADE", "TEMP_MEDIA"]
+    df_macro_validos = df_macro.dropna(subset=variaveis_macro).copy()
+    df_norm_macro = StandardScaler().fit_transform(df_macro_validos[variaveis_macro])
+    kmeans_macro = KMeans(n_clusters=4, random_state=42).fit(df_norm_macro)
+    df_macro.loc[df_macro_validos.index, "CLUSTER_MACRO"] = kmeans_macro.labels_
+
+    # Merge socioeconômico
+    df_macro = df_macro.merge(df_se, how="left", left_on="city", right_on="Cidade")
+
+    # Métricas derivadas
+    df_macro["RAZAO_INT_PM"] = df_macro["INTERNACOES"] / df_macro["PM2_5"]
+    df_macro["RAZAO_OB_INT"] = df_macro["OBITOS"] / df_macro["INTERNACOES"]
+    df_macro["CUSTO_PM"] = df_macro["CUSTO_MEDIO"] / df_macro["PM2_5"]
+    df_macro["INT_PER_CAPITA"] = df_macro["INTERNACOES"] / df_macro["Densidade demográfica (hab/km²)"]
+
+    # IVP (Índice de Vulnerabilidade à Poluição)
+    df_norm_ivp = StandardScaler().fit_transform(df_macro[["PM2_5", "INTERNACOES", "IDHM (2010)", "Saneamento básico (%)"]].fillna(0))
+    ivp = 0.4*df_norm_ivp[:,0] + 0.3*df_norm_ivp[:,1] - 0.2*df_norm_ivp[:,2] - 0.1*df_norm_ivp[:,3]
+    df_macro["IVP"] = ivp
+
+    return df_macro
     
 @st.cache_data
 def carregar_dados():
