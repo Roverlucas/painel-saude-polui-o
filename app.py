@@ -118,7 +118,7 @@ for col, title in zip(cols, metric_titles):
 # Rankings
 st.markdown("## Ranking por Cidade")
 df_ranking = df.groupby("city")[cols].mean().reset_index().sort_values("IVP", ascending=False)
-st.dataframe(df_ranking.style.format("{:.2f}"))
+st.dataframe(df_ranking.round(2))
 
 # Modo Avançado
 if modo_avancado:
