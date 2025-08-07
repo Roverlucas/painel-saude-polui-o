@@ -42,7 +42,8 @@ df_filtro = df_filtro[(pd.to_datetime(df_filtro["DATA_ENTRADA"]) >= pd.to_dateti
 cluster_tipo = st.radio("Tipo de clusterização:", ["Cluster por Cidade", "Cluster Macro"])
 cluster_col = "CLUSTER" if cluster_tipo == "Cluster por Cidade" else "CLUSTER_MACRO"
 clusters = df_filtro[cluster_col].dropna().unique()
-cluster_sel = st.selectbox("Selecione o cluster:", options=["Todos"] + sorted(list(clusters)))
+cluster_opcoes = ["Todos"] + sorted([str(c) for c in clusters if pd.notnull(c)])
+cluster_sel = st.selectbox("Selecione o cluster:", options=cluster_opcoes)
 if cluster_sel != "Todos":
     df_filtro = df_filtro[df_filtro[cluster_col] == cluster_sel]
 
