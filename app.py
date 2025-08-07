@@ -22,6 +22,82 @@ def carregar_dados():
     df_foz = pd.read_csv("Base_Reduzida_PBI_Foz.csv")
     df_se = pd.read_csv("Indicadores_Socioeconomicos_Cidades.csv")
 
+    for df_cidade in [df_curitiba, df_pg, df_medianeira, df_foz]:
+        if "DT_INTER" not in df_cidade.columns and "DATA_ENTRADA" in df_cidade.columns:
+            df_cidade.rename(columns={"DATA_ENTRADA": "DT_INTER"}, inplace=True)
+
+    for df_cidade in [df_curitiba, df_pg, df_medianeira, df_foz]:
+        if "CLUSTER" not in df_cidade.columns:
+            variaveis = ["PM2_5", "INTERNACOES", "OBITOS", "CUSTO_MEDIO", "DURACAO_MEDIA", "UMIDADE", "TEMP_MEDIA"]
+            df_tmp = df_cidade.dropna(subset=variaveis).copy()
+            df_norm = StandardScaler().fit_transform(df_tmp[variaveis])
+            kmeans = KMeans(n_clusters=3, random_state=42).fit(df_norm)
+            df_cidade.loc[df_tmp.index, "CLUSTER"] = kmeans.labels_
+
+    df_macro = pd.concat([df_curitiba, df_pg, df_medianeira, df_foz], ignore_index=True)
+
+    if "DT_INTER" not in df_macro.columns and "DATA_ENTRADA" in df_macro.columns:
+        df_macro.rename(columns={"DATA_ENTRADA": "DT_INTER"}, inplace=True)
+    df_macro["DT_INTER"] = pd.to_datetime(df_macro["DT_INTER"], errors="coerce")
+
+    variaveis_macro = ["PM2_5", "INTERNACOES", "OBITOS", "CUSTO_MEDIO", "DURACAO_MEDIA", "UMIDADE", "TEMP_MEDIA"]
+    df_macro_validos = df_macro.dropna(subset=variaveis_macro).copy()
+    df_norm_macro = StandardScaler().fit_transform(df_macro_validos[variaveis_macro])
+    kmeans_macro = KMeans(n_clusters=4, random_state=42).fit(df_norm_macro)
+    df_macro.loc[df_macro_validos.index, "CLUSTER_MACRO"] = kmeans_macro.labels_
+
+    df_macro = df_macro.merge(df_se, how="left", left_on="city", right_on="Cidade")
+
+    df_macro["RAZAO_INT_PM"] = df_macro["INTERNACOES"] / df_macro["PM2_5"]
+    df_macro["RAZAO_OB_INT"] = df_macro["OBITOS"] / df_macro["INTERNACOES"]
+    df_macro["CUSTO_PM"] = df_macro["CUSTO_MEDIO"] / df_macro["PM2_5"]
+    df_macro["INT_PER_CAPITA"] = df_macro["INTERNACOES"] / df_macro["Densidade demográfica (hab/km²)"]
+
+    df_norm_ivp = StandardScaler().fit_transform(df_macro[["PM2_5", "INTERNACOES", "IDHM (2010)", "Saneamento básico (%)"]].fillna(0))
+    ivp = 0.4*df_norm_ivp[:,0] + 0.3*df_norm_ivp[:,1] - 0.2*df_norm_ivp[:,2] - 0.1*df_norm_ivp[:,3]
+    df_macro["IVP"] = ivp
+
+    return df_macro
+
+df = carregar_dados()
+
+st.sidebar.header("Filtros")
+cidade_sel = st.sidebar.selectbox("Selecione uma cidade:", sorted(df["city"].unique()))
+data_min, data_max = df["DT_INTER"].min(), df["DT_INTER"].max()
+data_ini, data_fim = st.sidebar.date_input("Período:", [data_min, data_max], min_value=data_min, max_value=data_max)
+modo_avancado = st.sidebar.checkbox("Ativar Modo Avançado")
+
+df_filtrado = df[(df["city"] == cidade_sel) & (df["DT_INTER"] >= pd.to_datetime(data_ini)) & (df["DT_INTER"] <= pd.to_datetime(data_fim))]
+
+st.markdown(f"## Dashboards - {cidade_sel}")
+
+st.subheader("Métricas Principais")
+col1, col2, col3, col4 = st.columns(4)
+col1.metric("PM2.5 Médio", f"{df_filtrado['PM2_5'].mean():.1f} µg/m³")
+col2.metric("Internações Totais", int(df_filtrado["INTERNACOES"].sum()))
+col3.metric("Óbitos Totais", int(df_filtrado["OBITOS"].sum()))
+col4.metric("Custo Médio", f"R$ {df_filtrado['CUSTO_MEDIO'].mean():,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
+
+col5, col6, col7, col8 = st.columns(4)
+col5.metric("Duração Média", f"{df_filtrado['DURACAO_MEDIA'].mean():.1f} dias")
+col6.metric("Umidade Média", f"{df_filtrado['UMIDADE'].mean():.1f}%")
+col7.metric("Temperatura Média", f"{df_filtrado['TEMP_MEDIA'].mean():.1f} °C")
+col8.metric("IDHM", f"{df_filtrado['IDHM (2010)'].mean():.2f}")
+
+col9, col10 = st.columns(2)
+col9.metric("Renda per capita", f"R$ {df_filtrado['Renda per capita (R$ mensais)'].mean():.2f}")
+col10.metric("Saneamento básico", f"{df_filtrado['Saneamento básico (%)'].mean():.1f}%")
+
+
+# Carregar dados
+@st.cache_data
+def carregar_dados():
+    df_curitiba = pd.read_csv("Base_Reduzida_Curitiba_PBI.csv")
+    df_pg = pd.read_csv("Base_Reduzida_PBI_PontaGrossa.csv")
+    df_medianeira = pd.read_csv("Base_Reduzida_PBI_Medianeira.csv")
+    df_foz = pd.read_csv("Base_Reduzida_PBI_Foz.csv")
+    df_se = pd.read_csv("Indicadores_Socioeconomicos_Cidades.csv")
+
     # Padronizar nome da coluna de data
     for df_cidade in [df_curitiba, df_pg, df_medianeira, df_foz]:
         if "DT_INTER" not in df_cidade.columns and "DATA_ENTRADA" in df_cidade.columns:
