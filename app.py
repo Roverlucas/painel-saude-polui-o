@@ -37,9 +37,10 @@ def carregar_dados():
 
     df_macro = pd.concat([df_curitiba, df_pg, df_medianeira, df_foz], ignore_index=True)
 
-    # Corrigir tipo da coluna DT_INTER
-    if "DT_INTER" in df_macro.columns:
-        df_macro["DT_INTER"] = pd.to_datetime(df_macro["DT_INTER"], errors="coerce")
+    # Garantir existência e tipo da coluna DT_INTER
+    if "DT_INTER" not in df_macro.columns and "DATA_ENTRADA" in df_macro.columns:
+        df_macro.rename(columns={"DATA_ENTRADA": "DT_INTER"}, inplace=True)
+    df_macro["DT_INTER"] = pd.to_datetime(df_macro["DT_INTER"], errors="coerce")
 
     # Cluster macro
     variaveis_macro = ["PM2_5", "INTERNACOES", "OBITOS", "CUSTO_MEDIO", "DURACAO_MEDIA", "UMIDADE", "TEMP_MEDIA"]
