@@ -7,6 +7,7 @@ import seaborn as sns
 import plotly.graph_objects as go
 from sklearn.preprocessing import StandardScaler
 from sklearn.cluster import KMeans
+from scipy.stats import pearsonr, spearmanr
 
 # Título do app
 st.set_page_config(page_title="Painel de Saúde e Poluição", layout="wide")
@@ -86,7 +87,7 @@ st.markdown("### Indicadores Socioeconômicos da Cidade")
 if cidade_sel != "Todas":
     df_se_city = df[df["city"] == cidade_sel].iloc[0]
     col9, col10, col11 = st.columns(3)
-    col9.metric("IDHM", df_se_city["IDHM"])
+    col9.metric("IDHM", df_se_city["IDHM (2010)"])
     col10.metric("Renda Per Capita (R$)", f"{df_se_city['Renda per capita (R$ mensais)']:.2f}")
     col11.metric("Taxa de Alfabetização (%)", f"{df_se_city['Taxa de alfabetização (%)']:.1f}%")
 
@@ -104,6 +105,14 @@ st.plotly_chart(fig_se, use_container_width=True)
 df_stats = df.groupby(cluster_col)[["PM2_5", "INTERNACOES", "OBITOS", "CUSTO_MEDIO", "DURACAO_MEDIA", "UMIDADE", "TEMP_MEDIA"] + cols_se].mean().round(2)
 st.markdown("### Estatísticas Médias por Cluster")
 st.dataframe(df_stats)
+
+# Correlação entre variáveis
+st.markdown("### Correlação entre Indicadores de Poluição, Saúde e Socioeconômicos")
+variaveis_corr = ["PM2_5", "INTERNACOES", "OBITOS", "CUSTO_MEDIO", "DURACAO_MEDIA", "UMIDADE", "TEMP_MEDIA"] + cols_se
+df_corr = df[variaveis_corr].dropna()
+corr_matrix = df_corr.corr(method="pearson")
+fig_corr = px.imshow(corr_matrix, text_auto=True, title="Matriz de Correlação (Pearson)", aspect="auto")
+st.plotly_chart(fig_corr, use_container_width=True)
 
 # Gráficos preservados
 fig_series = px.line(df_filtro, x="DATA_ENTRADA", y="INTERNACOES", color="city", title="Série Temporal de Internações")
@@ -129,3 +138,4 @@ if auth_token:
     ngrok.set_auth_token(auth_token)
     public_url = ngrok.connect(8501)
     st.success(f"🔗 Painel disponível em: {public_url}")
+
