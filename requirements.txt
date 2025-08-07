@@ -3,4 +3,5 @@ pandas
 plotly
 numpy
 seaborn
+scikit-learn
 pyngrok
