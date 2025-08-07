@@ -37,7 +37,7 @@ df_filtro = df_filtro[(pd.to_datetime(df_filtro["DATA_ENTRADA"]) >= pd.to_dateti
 
 # Filtro por cluster
 clusters = df_filtro["CLUSTER"].dropna().unique()
-cluster_sel = st.selectbox("Selecione o cluster:", options=["Todos"] + sorted(list(clusters)))
+cluster_sel = st.selectbox("Selecione o cluster:", options=["Todos"] + sorted([str(c) for c in clusters if pd.notnull(c)]))
 if cluster_sel != "Todos":
     df_filtro = df_filtro[df_filtro["CLUSTER"] == cluster_sel]
 
