@@ -22,6 +22,11 @@ def carregar_dados():
     df_foz = pd.read_csv("Base_Reduzida_PBI_Foz.csv")
     df_se = pd.read_csv("Indicadores_Socioeconomicos_Cidades.csv")
 
+    # Padronizar nome da coluna de data
+    for df_cidade in [df_curitiba, df_pg, df_medianeira, df_foz]:
+        if "DT_INTER" not in df_cidade.columns and "DATA_ENTRADA" in df_cidade.columns:
+            df_cidade.rename(columns={"DATA_ENTRADA": "DT_INTER"}, inplace=True)
+
     for df_cidade in [df_curitiba, df_pg, df_medianeira, df_foz]:
         if "CLUSTER" not in df_cidade.columns:
             variaveis = ["PM2_5", "INTERNACOES", "OBITOS", "CUSTO_MEDIO", "DURACAO_MEDIA", "UMIDADE", "TEMP_MEDIA"]
@@ -134,3 +139,4 @@ if modo_avancado:
     st.markdown("#### Distribuição de Renda per Capita por Cidade")
     fig_hist = px.histogram(df, x="Renda per capita (R$ mensais)", color="city", nbins=30, marginal="box")
     st.plotly_chart(fig_hist, use_container_width=True)
+
